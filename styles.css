@@ -348,3 +348,13 @@ dialog::backdrop { background: var(--overlay); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
                }
+/* أرقام الأسعار بالإنجليزي مع الحفاظ على العملة بالعربي */
+.product-price,
+.dialog-price,
+.cart-price,
+.cart-total,
+.summary-row {
+  font-family: var(--font-detail), var(--font-arabic);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
