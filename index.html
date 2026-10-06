@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#4b0713">
+  <meta name="description" content="LEN — مكياج وعناية بالبشرة. اكتشفي جمالك بطريقتك ودعي كل تفصيلة تحكي عنك.">
+  <title>LEN — مكياج وعناية بالبشرة</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://get.fontspace.co" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=DM+Sans:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Rakkas&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="announcement" data-i18n="announcement">شحن لجميع المحافظات · اختاري جمالك مع LEN</div>
+  <header class="site-header">
+    <button class="icon-btn menu-btn" id="menuButton" aria-label="فتح القائمة" aria-controls="mainNav" aria-expanded="false">☰</button>
+    <a class="brand" href="#home" aria-label="LEN">
+      <img src="len-logo.jpeg" alt="LEN">
+      <span><strong lang="en" dir="ltr">LEN</strong><small lang="en" dir="ltr">MAKEUP &amp; SKIN CARE</small></span>
+    </a>
+    <nav id="mainNav">
+      <a href="#home" data-i18n="home">الرئيسية</a>
+      <a href="#shop" data-i18n="shop">المتجر</a>
+      <a href="#story" data-i18n="story">قصتنا</a>
+      <a href="#contact" data-i18n="contact">تواصلي معنا</a>
+    </nav>
+    <div class="header-actions">
+      <button class="icon-btn" id="searchButton" aria-label="بحث">⌕</button>
+      <button class="icon-btn cart-button" id="cartButton" aria-label="السلة">♧<b id="cartCount">0</b></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero" id="home">
+      <div class="hero-copy">
+        <p class="eyebrow" data-i18n="heroEyebrow">مكياج وعناية بالبشرة</p>
+        <h1 data-i18n="heroTitle">اكتشفي جمالك بطريقتك</h1>
+        <p data-i18n="heroText">دعي كل تفصيلة تحكي عنكِ — منتجات مختارة بعناية لمكياجكِ وعناية بشرتكِ.</p>
+        <a class="primary-button" href="#shop" data-i18n="shopNow">تسوّقي الآن</a>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="floating-cosmetic cosmetic-compact"><span></span></div>
+        <div class="floating-cosmetic cosmetic-lipstick"><span></span></div>
+        <div class="floating-cosmetic cosmetic-perfume"><span></span></div>
+        <img class="hero-logo" src="len-logo.jpeg" alt="">
+        <img class="arabic-brand-art" src="assets/len-arabic-tagline.jpeg" alt="">
+      </div>
+      <a class="scroll-cue" href="#shop" aria-label="المنتجات">⌄</a>
+    </section>
+
+    <section class="benefits" aria-label="مزايا المتجر">
+      <article><span>◇</span><div><b data-i18n="carefullyChosen">مختارة بعناية</b><small data-i18n="carefullyChosenText">منتجات نحبها ونثق بها</small></div></article>
+      <article><span>♡</span><div><b data-i18n="madeForYou">صُنعت لأجلكِ</b><small data-i18n="madeForYouText">تجربة جمال رقيقة وبسيطة</small></div></article>
+      <article><span>✦</span><div><b data-i18n="fastDelivery">توصيل سريع</b><small data-i18n="fastDeliveryText">لباب بيتك في كل المحافظات</small></div></article>
+    </section>
+
+    <section class="shop-section" id="shop">
+      <div class="section-heading">
+        <div><p class="eyebrow" data-i18n="collection">مجموعة LEN</p><h2 data-i18n="discover">اكتشفي مفضلاتك</h2></div>
+        <label class="search-field"><span>⌕</span><input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="ابحثي عن منتج..."></label>
+      </div>
+      <div class="category-tabs" id="categoryTabs"></div>
+      <div class="product-grid" id="productGrid"><div class="loading"><i></i><span data-i18n="loading">جارٍ تحميل المنتجات...</span></div></div>
+    </section>
+
+    <section class="story-section" id="story">
+      <div class="story-emblem"><img src="len-logo.jpeg" alt="LEN"></div>
+      <div class="story-copy"><p class="eyebrow" data-i18n="ourStory">قصتنا</p><h2 data-i18n="storyTitle">لأن الجمال شعور قبل أن يكون مظهرًا</h2><p data-i18n="storyText">بدأت LEN بحب التفاصيل الأنثوية الصغيرة. نختار كل منتج ليضيف لحظتكِ الخاصة من الثقة والدلال.</p><a href="#shop" class="link-arrow" data-i18n="exploreCollection">اكتشفي المجموعة ←</a></div>
+    </section>
+  </main>
+
+  <footer id="contact">
+    <div class="footer-contacts">
+      <a class="social-link" href="https://vm.tiktok.com/ZS9D9fyrhn2HN-v4UVB/" target="_blank" rel="noopener noreferrer" aria-label="تابعينا على تيك توك">
+        <span class="social-icon" aria-hidden="true">♪</span><span>تيك توك</span>
+      </a>
+      <a class="social-link" href="https://wa.me/201044285043" target="_blank" rel="noopener noreferrer" aria-label="تواصلي معنا على واتساب">
+        <span class="social-icon whatsapp-icon" aria-hidden="true">◉</span><span>واتساب · 010 44285043</span>
+      </a>
+    </div>
+    <p class="copyright" lang="en" dir="ltr">© 2026 LEN</p>
+  </footer>
+
+  <div class="drawer-backdrop" id="backdrop"></div>
+  <aside class="cart-drawer" id="cartDrawer" aria-label="سلة التسوق">
+    <header><div><p class="eyebrow">LEN</p><h2 data-i18n="yourCart">سلة مشترياتك</h2></div><button class="icon-btn" id="closeCart" aria-label="إغلاق">×</button></header>
+    <div class="cart-items" id="cartItems"></div>
+    <div class="cart-summary" id="cartSummary"></div>
+  </aside>
+
+  <dialog id="productDialog" class="product-dialog"><button class="dialog-close" data-close-dialog>×</button><div id="productDetails"></div></dialog>
+  <dialog id="checkoutDialog" class="checkout-dialog"><button class="dialog-close" data-close-checkout>×</button><div id="checkoutContent"></div></dialog>
+  <div class="toast" id="toast" role="status"></div>
+</body>
+</html>
