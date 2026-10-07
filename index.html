@@ -1,18 +1,12 @@
+
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link
-  href="https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Great+Vibes&display=swap"
-  rel="stylesheet"
-/>
-
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#4b0713">
-  <meta name="description" content="LEN — مكياج وعناية بالبشرة. اكتشفي جمالك بطريقتك ودعي كل تفصيلة تحكي عنك.">
-  <title>LEN — مكياج وعناية بالبشرة</title>
+  <meta name="description" content="LEN — ميكاب وعناية بالبشرة. اكتشفي جمالك بطريقتك ودعي كل تفصيلة تحكي عنك.">
+  <title>LEN — ميكاب وعناية بالبشرة</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://get.fontspace.co" crossorigin>
@@ -43,15 +37,12 @@
   <main>
     <section class="hero" id="home">
       <div class="hero-copy">
-        <p class="eyebrow" data-i18n="heroEyebrow">مكياج وعناية بالبشرة</p>
+          <p class="eyebrow" data-i18n="heroEyebrow">ميكاب وعناية بالبشرة</p>
         <h1 data-i18n="heroTitle">اكتشفي جمالك بطريقتك</h1>
-        <p data-i18n="heroText">دعي كل تفصيلة تحكي عنكِ — منتجات مختارة بعناية لمكياجكِ وعناية بشرتكِ.</p>
+        <p data-i18n="heroText">دعي كل تفصيلة تحكي عنكِ — منتجات مختارة بعناية لميكابكِ وعناية بشرتكِ.</p>
         <a class="primary-button" href="#shop" data-i18n="shopNow">تسوّقي الآن</a>
       </div>
       <div class="hero-art" aria-hidden="true">
-        <div class="floating-cosmetic cosmetic-compact"><span></span></div>
-        <div class="floating-cosmetic cosmetic-lipstick"><span></span></div>
-        <div class="floating-cosmetic cosmetic-perfume"><span></span></div>
         <img class="hero-logo" src="len-logo.jpeg" alt="">
         <img class="arabic-brand-art" src="assets/len-arabic-tagline.jpeg" alt="">
       </div>
@@ -70,6 +61,16 @@
         <label class="search-field"><span>⌕</span><input id="searchInput" type="search" data-i18n-placeholder="searchPlaceholder" placeholder="ابحثي عن منتج..."></label>
       </div>
       <div class="category-tabs" id="categoryTabs"></div>
+      <aside class="store-notes" id="shipping-info" aria-label="معلومات الشحن والتوصيل">
+        <div class="store-note">
+          <h3>معلومات الشحن</h3>
+          <p>سعر الشحن اتحدد طبقًا لمحافظتك ولشحنة وزنها 2 كجم.<br>للعلم كل كجم زيادة = 10ج.<br>للتأكد من سعر الشحن <a class="inline-whatsapp-link" data-whatsapp-link href="#">تواصل واتساب</a>.</p>
+        </div>
+        <div class="store-note">
+          <h3>مدة التوصيل</h3>
+          <p>مدة التوصيل من 3 إلى 5 أيام، بدءًا من تاني يوم بعد الطلب، والجمعة والسبت إجازة ومبيتحسبوش.</p>
+        </div>
+      </aside>
       <div class="product-grid" id="productGrid"><div class="loading"><i></i><span data-i18n="loading">جارٍ تحميل المنتجات...</span></div></div>
     </section>
 
@@ -84,8 +85,8 @@
       <a class="social-link" href="https://vm.tiktok.com/ZS9D9fyrhn2HN-v4UVB/" target="_blank" rel="noopener noreferrer" aria-label="تابعينا على تيك توك">
         <span class="social-icon" aria-hidden="true">♪</span><span>تيك توك</span>
       </a>
-      <a class="social-link" href="https://wa.me/201044285043" target="_blank" rel="noopener noreferrer" aria-label="تواصلي معنا على واتساب">
-        <span class="social-icon whatsapp-icon" aria-hidden="true">◉</span><span>واتساب · 010 44285043</span>
+      <a class="social-link" data-whatsapp-link href="#" target="_blank" rel="noopener noreferrer" aria-label="تواصلي معنا على واتساب">
+        <span class="social-icon whatsapp-icon" aria-hidden="true">◉</span><span>واتساب · <span data-whatsapp-display>010 44285043</span></span>
       </a>
     </div>
     <p class="copyright" lang="en" dir="ltr">© 2026 LEN</p>
