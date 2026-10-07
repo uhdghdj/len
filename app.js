@@ -1,8 +1,10 @@
+
 (() => {
   "use strict";
 
   const SUPABASE_URL = "https://nmtdliqubfpextwdfqkf.supabase.co";
   const KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5tdGRsaXF1YmZwZXh0d2RmcWtmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExNzE0MjUsImV4cCI6MjEwNjc0NzQyNX0.9XrmjJ9usGauKu82L82DyL5dAt_YhfwZXq5uq55I2NY";
+  const CURRENT_STORE_WHATSAPP = "201044285043";
   const REST = `${SUPABASE_URL}/rest/v1`;
   const headers = { apikey: KEY, Authorization: `Bearer ${KEY}` };
   const $ = selector => document.querySelector(selector);
@@ -51,9 +53,9 @@
     ar: {
       announcement: "شحن لجميع المحافظات · اكتشفي جمالك بطريقتك مع LEN",
       home: "الرئيسية", shop: "المتجر", story: "قصتنا", contact: "تواصلي معنا",
-      heroEyebrow: "مكياج وعناية بالبشرة",
+      heroEyebrow: "ميكاب وعناية بالبشرة",
       heroTitle: "اكتشفي جمالك بطريقتك",
-      heroText: "دعي كل تفصيلة تحكي عنكِ — منتجات مختارة بعناية لمكياجكِ وعناية بشرتكِ.",
+      heroText: "دعي كل تفصيلة تحكي عنكِ — منتجات مختارة بعناية لميكابكِ وعناية بشرتكِ.",
       shopNow: "تسوّقي الآن", carefullyChosen: "مختارة بعناية",
       carefullyChosenText: "منتجات نحبها ونثق بها", madeForYou: "صُنعت لأجلكِ",
       madeForYouText: "تجربة جمال رقيقة وبسيطة", fastDelivery: "توصيل سريع",
@@ -79,7 +81,8 @@
       orderNumber: "رقم الطلب", orderError: "تعذر إرسال الطلب الآن. حاولي مرة أخرى.",
       details: "التفاصيل", shipping: "الشحن", orderTotal: "الإجمالي شامل الشحن",
       chooseGovernorate: "اختاري المحافظة لحساب الشحن",
-      shippingRule: "سعر الشحن لأول كيلو، ويُضاف ١٠ جنيه عن كل كيلو إضافي أو جزء منه.",
+      shippingRule: "سعر الشحن اتحدد طبقًا لمحافظتك ولشحنة وزنها 2 كجم. للعلم كل كجم زيادة = 10ج. للتأكد من سعر الشحن",
+      deliveryRule: "مدة التوصيل من 3 إلى 5 أيام، بدءًا من تاني يوم بعد الطلب، والجمعة والسبت إجازة ومبيتحسبوش.",
       shipmentWeight: "الوزن المحتسب للشحنة", estimated: "تقديري",
       currencySuffix: "جنيه", free: "—"
     }
@@ -94,15 +97,140 @@
     ? product.name_ar
     : "";
   const description = product => product.description_ar || product.description_en || "";
-  const categoryName = category => category.name_ar || category.name_en || "";
+  const categoryName = category => String(category.name_ar || category.name_en || "")
+    .replaceAll("مكياج", "ميكاب");
   const productImage = product => product.image_url || product.images?.[0]?.image_url || "";
+  const categoryImage = category => {
+    const direct = category.image_url || category.cover_image_url || category.image ||
+      category.thumbnail_url || category.photo_url;
+    if (direct) return direct;
+    const product = state.products.find(item => String(item.category_id) === String(category.id));
+    return product ? productImage(product) : "";
+  };
+  const formatNumber = (value, options = {}) => Number(value || 0).toLocaleString("en-US", options);
   const money = value => {
-    const amount = Number(value || 0).toLocaleString("ar-EG", {
+    const amount = formatNumber(value, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     });
     return `${amount} ${state.settings.currency || t("currencySuffix")}`;
   };
+  const productDiscountPercent = product => {
+    const percentage = Number(product?.discount_percentage ?? 0);
+    return Number.isFinite(percentage) && percentage > 0 && percentage <= 100
+      ? percentage
+      : 0;
+  };
+  const productUnitPrice = product => {
+    const price = Number(product?.price || 0);
+    const percentage = productDiscountPercent(product);
+    return Number((price * (1 - percentage / 100)).toFixed(2));
+  };
+  const productPriceMarkup = product => productDiscountPercent(product)
+    ? `<span class="price product-price-discounted"><s class="product-price-old">${money(product.price)}</s><strong class="product-price-current">${money(productUnitPrice(product))}</strong></span>`
+    : `<span class="price">${money(product.price)}</span>`;
+  const productDiscountBadge = product => {
+    const percentage = productDiscountPercent(product);
+    return percentage
+      ? `<span class="product-discount-badge">خصم ${formatNumber(percentage, { maximumFractionDigits: 2 })}%</span>`
+      : "";
+  };
+  function ensureProductDiscountStyles() {
+    if ($("#lenProductDiscountStyles")) return;
+    const style = document.createElement("style");
+    style.id = "lenProductDiscountStyles";
+    style.textContent = `
+      #productGrid .product-media { position: relative; }
+      #productGrid .product-discount-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 6px 10px; border-radius: 3px; background: #651d31; color: #fff; font-size: 12px; font-weight: 700; line-height: 1.2; }
+      .product-price-discounted { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+      .product-price-old { color: #8b817d; font-size: .78em; font-weight: 400; text-decoration: line-through; }
+      .product-price-current { color: #651d31; font-weight: 700; }
+    `;
+    document.head.append(style);
+  }
+
+  function normalizedWhatsAppNumber(value) {
+    if (!value) return "";
+    const digits = String(value).replace(/[٠-٩]/g, digit => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+      .replace(/[^\d]/g, "");
+    const international = digits.startsWith("00") ? digits.slice(2)
+      : digits.startsWith("0") ? `20${digits.slice(1)}`
+        : digits.startsWith("20") ? digits
+          : `20${digits}`;
+    return /^201[0125]\d{8}$/.test(international) ? international : "";
+  }
+
+  function storeWhatsAppNumber() {
+    const configured = Object.entries(state.settings || {})
+      .filter(([key]) => /whatsapp|wa_?phone|phone_?wa/i.test(key))
+      .map(([, value]) => normalizedWhatsAppNumber(value))
+      .find(Boolean);
+    return configured || CURRENT_STORE_WHATSAPP;
+  }
+
+  function whatsappUrl(message = "", phone = "") {
+    const suffix = message ? `?text=${encodeURIComponent(message)}` : "";
+    const number = normalizedWhatsAppNumber(phone) || storeWhatsAppNumber();
+    return `https://wa.me/${number}${suffix}`;
+  }
+
+  function displayWhatsAppNumber() {
+    const number = storeWhatsAppNumber();
+    return `0${number.slice(2, 4)} ${number.slice(4)}`;
+  }
+
+  function formatPaymentPhone(value) {
+    if (value == null || typeof value === "object") return "";
+    const raw = String(value).trim().replace(/[٠-٩]/g, digit =>
+      String("٠١٢٣٤٥٦٧٨٩".indexOf(digit))
+    );
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 10 || digits.length > 15) return "";
+    if (digits.startsWith("20") && digits.length === 12) return `0${digits.slice(2)}`;
+    if (digits.length === 10 && digits.startsWith("1")) return `0${digits}`;
+    return raw;
+  }
+
+  function flattenSettings(value, prefix = "", result = []) {
+    if (!value || typeof value !== "object") return result;
+    Object.entries(value).forEach(([key, entry]) => {
+      const name = prefix ? `${prefix}_${key}` : key;
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        flattenSettings(entry, name, result);
+      } else {
+        result.push([name.toLowerCase(), entry]);
+      }
+    });
+    return result;
+  }
+
+  function paymentRecipientPhone(paymentMethod) {
+    const methodPattern = paymentMethod === "instapay"
+      ? /insta.?pay/i
+      : /vodafone|vf.?cash/i;
+    const entries = flattenSettings(state.settings);
+    const specific = entries.find(([key, value]) =>
+      methodPattern.test(key) && formatPaymentPhone(value)
+    );
+    if (specific) return formatPaymentPhone(specific[1]);
+
+    const generic = entries.find(([key, value]) =>
+      !/whatsapp|wa_?phone/i.test(key) &&
+      /(payment|transfer|recipient|receiver|wallet|account)/i.test(key) &&
+      /(phone|mobile|number)/i.test(key) &&
+      formatPaymentPhone(value)
+    );
+    return generic ? formatPaymentPhone(generic[1]) : "";
+  }
+
+  function renderWhatsAppLinks() {
+    document.querySelectorAll("[data-whatsapp-link]").forEach(link => {
+      link.href = whatsappUrl();
+      link.querySelectorAll("[data-whatsapp-display]").forEach(node => {
+        node.textContent = displayWhatsAppNumber();
+      });
+    });
+  }
 
   function readCart() {
     try {
@@ -130,6 +258,7 @@
 
   async function load() {
     try {
+      ensureProductDiscountStyles();
       const [categories, products, settings] = await Promise.all([
         get("/categories?select=*&order=name_en"),
         get("/products?select=*,category:categories(*),images:product_images(*)&is_active=eq.true&order=created_at.desc"),
@@ -138,6 +267,7 @@
       state.categories = categories;
       state.products = products;
       state.settings = settings[0] || {};
+      renderWhatsAppLinks();
       renderCategories();
       renderProducts();
       renderCart();
@@ -165,12 +295,32 @@
   function renderCategories() {
     const holder = $("#categoryTabs");
     if (!holder) return;
-    holder.innerHTML = `<button class="${state.category === "all" ? "active" : ""}" data-category="all">${t("all")}</button>` +
-      state.categories.map(category => `
-        <button class="${state.category === String(category.id) ? "active" : ""}"
-          data-category="${esc(category.id)}"><span lang="${category.name_ar ? "ar" : "en"}"
-          dir="${category.name_ar ? "rtl" : "ltr"}">${esc(categoryName(category))}</span></button>
-      `).join("");
+    const allImage = state.products.map(productImage).find(Boolean) || "";
+    const cards = [{
+      id: "all",
+      label: t("all"),
+      image: allImage,
+      count: state.products.length,
+      lang: "ar"
+    }, ...state.categories.map(category => ({
+      id: String(category.id),
+      label: categoryName(category),
+      image: categoryImage(category),
+      count: state.products.filter(product => String(product.category_id) === String(category.id)).length,
+      lang: category.name_ar ? "ar" : "en"
+    }))];
+    holder.innerHTML = cards.map(card => `
+      <button class="category-card${state.category === card.id ? " active" : ""}"
+        data-category="${esc(card.id)}" aria-pressed="${state.category === card.id}">
+        <span class="category-card-media">
+          ${card.image
+            ? `<img src="${esc(card.image)}" alt="" loading="lazy">`
+            : `<span class="category-card-placeholder" aria-hidden="true">LEN</span>`}
+          <span class="category-card-count">${formatNumber(card.count)}</span>
+        </span>
+        <span class="category-card-name" lang="${card.lang}" dir="${card.lang === "ar" ? "rtl" : "ltr"}">${esc(card.label)}</span>
+      </button>
+    `).join("");
   }
 
   function renderProducts() {
@@ -188,6 +338,7 @@
             ? `<img src="${esc(productImage(product))}" alt="${esc(productNameEnglish(product))}" loading="lazy">`
             : `<div class="product-placeholder">LEN</div>`}
           <span class="badge">${Number(product.stock_quantity) > 0 ? t("inStock") : t("soldOut")}</span>
+          ${productDiscountBadge(product)}
           ${Number(product.stock_quantity) > 0
             ? `<button class="quick-add" data-add="${esc(product.id)}">${t("add")}</button>`
             : ""}
@@ -199,7 +350,7 @@
           ${productNameArabic(product)
             ? `<p class="product-name-ar" lang="ar" dir="rtl">${esc(productNameArabic(product))}</p>`
             : ""}
-          <span class="price">${money(product.price)}</span>
+          ${productPriceMarkup(product)}
         </div>
       </article>
     `).join("") : `<div class="empty">${t("empty")}</div>`;
@@ -229,7 +380,7 @@
 
   function cartTotal() {
     return cartProducts().reduce((sum, item) =>
-      sum + Number(item.product.price) * item.row.quantity, 0);
+      sum + productUnitPrice(item.product) * item.row.quantity, 0);
   }
 
   function renderCart() {
@@ -245,7 +396,7 @@
           ${productNameArabic(product)
             ? `<small class="cart-name-ar" lang="ar" dir="rtl">${esc(productNameArabic(product))}</small>`
             : ""}
-          <span class="price">${money(product.price)}</span>
+          ${productPriceMarkup(product)}
           <div class="quantity">
             <button data-qty="${esc(product.id)}" data-delta="-1" aria-label="−">−</button>
             <span>${row.quantity}</span>
@@ -282,7 +433,7 @@
           ${productNameArabic(product)
             ? `<p class="product-name-ar dialog-name-ar" lang="ar" dir="rtl">${esc(productNameArabic(product))}</p>`
             : ""}
-          <p class="price">${money(product.price)}</p>
+          ${productPriceMarkup(product)}
           <p class="description" lang="${product.description_ar ? "ar" : "en"}"
             dir="${product.description_ar ? "rtl" : "ltr"}">${esc(description(product))}</p>
           <p class="stock">${Number(product.stock_quantity) > 0
@@ -321,7 +472,7 @@
     const region = governorates.find(item => item.id === governorateId);
     if (!region) return 0;
     const { weightKg } = shipmentWeight();
-    const extraKilos = Math.max(0, Math.ceil(weightKg - 1 - 1e-9));
+    const extraKilos = Math.max(0, Math.ceil(weightKg - 2 - 1e-9));
     return region.fee + extraKilos * 10;
   }
 
@@ -335,7 +486,7 @@
     const orderTotal = cartTotal() + (shipping || 0);
     const depositPercent = Number(state.settings.deposit_percentage ?? 30);
     const deposit = orderTotal * depositPercent / 100;
-    const weightText = `${weight.weightKg.toLocaleString("ar-EG", {
+    const weightText = `${formatNumber(weight.weightKg, {
       maximumFractionDigits: 2
     })} كجم${weight.estimated ? ` (${t("estimated")})` : ""}`;
 
@@ -344,10 +495,40 @@
       <div class="summary-line"><span>${t("shipping")}${selectedRegion ? ` · ${esc(selectedRegion.ar)}` : ""}</span>
         <b class="price">${shipping === null ? t("free") : money(shipping)}</b></div>
       <div class="summary-line"><span>${t("shipmentWeight")}</span><span>${weightText}</span></div>
-      <div class="shipping-note">${t("shippingRule")}</div>
+      <div class="shipping-note">
+        <p>${t("shippingRule")} <a data-whatsapp-link href="#">تواصل واتساب</a>.</p>
+        <p>${t("deliveryRule")}</p>
+      </div>
       <div class="summary-line grand-total"><b>${t("orderTotal")}</b><b class="price">${money(orderTotal)}</b></div>
-      <div class="summary-line"><span>${t("deposit")} (${depositPercent}%)</span><b class="price">${money(deposit)}</b></div>
+      <div class="summary-line"><span>${t("deposit")} (${formatNumber(depositPercent)}%)</span><b class="price">${money(deposit)}</b></div>
     `;
+    renderWhatsAppLinks();
+    renderPaymentInstructions();
+  }
+
+  function renderPaymentInstructions() {
+    const paymentMethod = $("#paymentMethod")?.value || "instapay";
+    const methodName = paymentMethod === "instapay" ? "InstaPay" : "Vodafone Cash";
+    const phone = paymentRecipientPhone(paymentMethod);
+    const useTransferNumberForWhatsApp = Boolean(normalizedWhatsAppNumber(phone));
+    const phoneNode = $("#checkoutTransferPhone");
+    const methodNode = $("#checkoutPaymentMethod");
+    const contactNote = $("#checkoutContactInstruction");
+    const whatsappLink = $("#checkoutWhatsappLink");
+
+    if (phoneNode) phoneNode.textContent = phone || "غير مسجل في إعدادات المتجر";
+    if (methodNode) methodNode.textContent = methodName;
+    if (contactNote) {
+      contactNote.textContent = useTransferNumberForWhatsApp
+        ? "بعد التحويل، برجاء التواصل معنا عبر واتساب على نفس الرقم وإرسال صورة التحويل ورقم الطلب لتأكيد الأوردر."
+        : `بعد التحويل، برجاء التواصل معنا عبر واتساب على رقم خدمة العملاء ${displayWhatsAppNumber()} وإرسال صورة التحويل ورقم الطلب لتأكيد الأوردر.`;
+    }
+    if (whatsappLink) {
+      whatsappLink.href = whatsappUrl("", useTransferNumberForWhatsApp ? phone : "");
+      whatsappLink.textContent = useTransferNumberForWhatsApp
+        ? "التواصل عبر واتساب على نفس الرقم"
+        : `واتساب خدمة العملاء · ${displayWhatsAppNumber()}`;
+    }
   }
 
   function checkout() {
@@ -357,9 +538,13 @@
         <p class="eyebrow">LEN</p>
         <h2>${t("checkoutTitle")}</h2>
         <aside class="checkout-whatsapp-note" role="note">
-          <strong>لتأكيد الطلب:</strong>
-          اعملي لقطة شاشة لرقم الطلب، وحوّلي العربون، ثم ابعتي لنا على واتساب صورة التحويل ورقم الطلب عشان نأكد طلبك.
-          <a href="https://wa.me/201044285043" target="_blank" rel="noopener noreferrer">واتساب 010 44285043</a>
+          <strong>ملاحظة لتأكيد الطلب:</strong>
+          <p>يتم دفع العربون الموضح في ملخص الطلب مقدمًا كجدية حجز، وهو جزء من قيمة الأوردر ويُخصم منها؛ لأننا نرسل الأوردر مع شركة شحن ونسدد تكلفة التوصيل مقدمًا.</p>
+          <p>يتم تحويل العربون عبر <strong id="checkoutPaymentMethod">InstaPay</strong> على رقم التحويل:
+            <strong id="checkoutTransferPhone">غير مسجل في إعدادات المتجر</strong>.</p>
+          <p>باقي ثمن الأوردر يتم دفعه عند الاستلام.</p>
+          <p id="checkoutContactInstruction"></p>
+          <a id="checkoutWhatsappLink" href="#" target="_blank" rel="noopener noreferrer">واتساب</a>
         </aside>
         <form class="checkout-form" id="checkoutForm">
           <div class="field">
@@ -379,7 +564,7 @@
             <select id="governorateSelect" name="governorate" required>
               <option value="">${t("chooseGovernorate")}</option>
               ${governorates.map(region => `
-                <option value="${region.id}">${region.ar} — ${Number(region.fee).toLocaleString("ar-EG")} جنيه</option>
+                <option value="${region.id}">${region.ar} — ${formatNumber(region.fee)} جنيه</option>
               `).join("")}
             </select>
           </div>
@@ -404,14 +589,16 @@
       </div>
     `;
     $("#governorateSelect").addEventListener("change", renderCheckoutSummary);
+    $("#paymentMethod").addEventListener("change", renderPaymentInstructions);
+    renderWhatsAppLinks();
     renderCheckoutSummary();
     openCart(false);
     $("#checkoutDialog").showModal();
   }
 
-  function whatsappOrderLink(orderNumber) {
+  function whatsappOrderLink(orderNumber, phone = "") {
     const message = `مرحبًا LEN، رقم طلبي ${orderNumber}. سأرفق صورة تحويل العربون لتأكيد الطلب.`;
-    return `https://wa.me/201044285043?text=${encodeURIComponent(message)}`;
+    return whatsappUrl(message, phone);
   }
 
   async function submitOrder(form) {
@@ -436,8 +623,9 @@
       product_name_ar: product.name_ar,
       product_name_en: product.name_en,
       quantity: row.quantity,
-      unit_price: Number(product.price),
-      total_price: Number(product.price) * row.quantity
+      unit_price: productUnitPrice(product),
+      total_price: productUnitPrice(product) * row.quantity,
+      discount_percentage: productDiscountPercent(product)
     }));
     const shippingNote = `الشحن: ${shipping} جنيه | وزن الشحنة: ${weight.weightKg} كجم${weight.estimated ? " (تقديري)" : ""} | الإجمالي شامل الشحن: ${grandTotal} جنيه`;
     const orderNotes = [data.notes?.trim(), shippingNote].filter(Boolean).join("\n");
@@ -479,16 +667,68 @@
       const orders = await orderResponse.json();
       if (!orderResponse.ok) throw new Error(orders.message || "Order request failed");
 
+      try {
+        const emailResponse = await fetch(
+          `${SUPABASE_URL}/functions/v1/send-order-email`,
+          {
+            method: "POST",
+            headers: {
+              ...headers,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              order_number: orderNumber
+            })
+          }
+        );
+
+        const emailResult = await emailResponse.json().catch(() => ({}));
+
+        if (!emailResponse.ok || !emailResult.success) {
+          console.error(
+            "Admin email notification failed:",
+            emailResult
+          );
+        } else {
+          console.log(
+            "Admin email notification sent:",
+            emailResult.email_id || orderNumber
+          );
+        }
+      } catch (emailError) {
+        console.error(
+          "Admin email notification request failed:",
+          emailError
+        );
+      }
+
       state.cart = [];
       saveCart();
+      const transferPhone = paymentRecipientPhone(data.payment_method);
+      const useTransferNumberForWhatsApp = Boolean(normalizedWhatsAppNumber(transferPhone));
+      const paymentMethodName = data.payment_method === "instapay" ? "InstaPay" : "Vodafone Cash";
       $("#checkoutContent").innerHTML = `
         <div class="success-panel">
           <b>✓</b>
           <h2>${t("orderSuccess")}</h2>
-          <p>${t("orderNumber")}: <strong lang="en" dir="ltr">${esc(orderNumber)}</strong></p>
+          <div class="success-order-details">
+            <p><span>${t("orderNumber")}</span><strong lang="en" dir="ltr">${esc(orderNumber)}</strong></p>
+            <p><span>رقم التحويل · ${paymentMethodName}</span>
+              <strong lang="en" dir="ltr">${transferPhone
+                ? esc(transferPhone)
+                : "غير مسجل — تواصلي معنا قبل التحويل"}</strong></p>
+          </div>
           <p>${t("orderTotal")}: <strong class="price">${money(grandTotal)}</strong></p>
-          <p class="success-instructions">اعملي لقطة شاشة لرقم الطلب، وحوّلي العربون، ثم ابعتي صورة التحويل ورقم الطلب على واتساب لتأكيد طلبك.</p>
-          <a class="whatsapp-cta" href="${whatsappOrderLink(orderNumber)}" target="_blank" rel="noopener noreferrer">إرسال رقم الطلب على واتساب</a>
+          <p class="success-instructions">
+            يتم دفع العربون الموضح في ملخص الطلب مقدمًا كجدية حجز، وهو جزء من قيمة الأوردر ويُخصم منها؛ لأننا نرسل الأوردر مع شركة شحن ونسدد تكلفة التوصيل مقدمًا.
+            يتم التحويل عبر ${esc(paymentMethodName)} على رقم التحويل
+            <strong lang="en" dir="ltr">${transferPhone ? esc(transferPhone) : "غير مسجل في إعدادات المتجر"}</strong>.
+            باقي ثمن الأوردر يتم دفعه عند الاستلام.
+            ${useTransferNumberForWhatsApp
+              ? "بعد التحويل، برجاء التواصل معنا عبر واتساب على نفس الرقم وإرسال صورة التحويل ورقم الطلب لتأكيد الأوردر."
+              : `بعد التحويل، برجاء التواصل معنا عبر واتساب على رقم خدمة العملاء ${esc(displayWhatsAppNumber())} وإرسال صورة التحويل ورقم الطلب لتأكيد الأوردر.`}
+          </p>
+          <a class="whatsapp-cta" href="${whatsappOrderLink(orderNumber, useTransferNumberForWhatsApp ? transferPhone : "")}" target="_blank" rel="noopener noreferrer">إرسال صورة التحويل ورقم الطلب عبر واتساب</a>
         </div>
       `;
     } catch (error) {
@@ -504,6 +744,9 @@
       state.category = category.dataset.category;
       renderCategories();
       renderProducts();
+      requestAnimationFrame(() => {
+        $("#productGrid").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     }
 
     const addButton = event.target.closest("[data-add]");
@@ -577,5 +820,6 @@
   });
 
   applyLanguage();
+  renderWhatsAppLinks();
   load();
 })();
