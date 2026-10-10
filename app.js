@@ -46,6 +46,8 @@
     settings: {},
     category: "all",
     query: "",
+    sort: "",
+    sales: {},
     cart: readCart()
   };
 
@@ -132,7 +134,7 @@
   const productDiscountBadge = product => {
     const percentage = productDiscountPercent(product);
     return percentage
-      ? `<span class="product-discount-badge">خصم ${formatNumber(percentage, { maximumFractionDigits: 2 })}%</span>`
+      ? `<span class="product-discount-badge" lang="en">OFFER · ${formatNumber(percentage, { maximumFractionDigits: 2 })}%</span>`
       : "";
   };
   function ensureProductDiscountStyles() {
@@ -271,10 +273,45 @@
       renderCategories();
       renderProducts();
       renderCart();
+      route();
+      loadSales();
     } catch (error) {
       console.error(error);
       $("#productGrid").innerHTML = `<div class="empty">${t("orderError")}</div>`;
     }
+  }
+
+  // Real sales: summed from confirmed/completed orders only; each order counted once (by id).
+  const SOLD_STATUSES = ["confirmed", "processing", "preparing", "shipped", "delivered", "completed"];
+  async function loadSales() {
+    try {
+      const orders = await get(`/orders?select=id,items,order_status&order_status=in.(${SOLD_STATUSES.join(",")})`);
+      const seen = new Set();
+      const sales = {};
+      orders.forEach(order => {
+        if (seen.has(order.id)) return;
+        seen.add(order.id);
+        (Array.isArray(order.items) ? order.items : []).forEach(item => {
+          if (!item?.product_id) return;
+          sales[item.product_id] = (sales[item.product_id] || 0) + Math.max(0, Number(item.quantity) || 0);
+        });
+      });
+      state.sales = sales;
+    } catch (error) {
+      console.error("Sales counts unavailable:", error);
+      state.sales = {};
+    }
+    if (state.sort === "best") renderProducts();
+  }
+
+  function sortProducts(items) {
+    const list = [...items];
+    if (state.sort === "price-desc") list.sort((a, b) => productUnitPrice(b) - productUnitPrice(a));
+    else if (state.sort === "price-asc") list.sort((a, b) => productUnitPrice(a) - productUnitPrice(b));
+    else if (state.sort === "best") list.sort((a, b) => (state.sales[b.id] || 0) - (state.sales[a.id] || 0));
+    else if (state.sort === "newest") list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    else if (state.sort === "discount") list.sort((a, b) => (Number(productDiscountPercent(b)) || 0) - (Number(productDiscountPercent(a)) || 0));
+    return list;
   }
 
   function applyLanguage() {
@@ -327,13 +364,13 @@
     const holder = $("#productGrid");
     if (!holder) return;
     const query = state.query.trim().toLowerCase();
-    const items = state.products.filter(product =>
+    const items = sortProducts(state.products.filter(product =>
       (state.category === "all" || String(product.category_id) === state.category) &&
       (!query || `${product.name_ar || ""} ${product.name_en || ""}`.toLowerCase().includes(query))
-    );
+    ));
     holder.innerHTML = items.length ? items.map(product => `
-      <article class="product-card">
-        <div class="product-media" data-product="${esc(product.id)}">
+      <article class="product-card" data-product="${esc(product.id)}" tabindex="0" role="link" aria-label="${esc(product.name_ar || productNameEnglish(product))}">
+        <div class="product-media">
           ${productImage(product)
             ? `<img src="${esc(productImage(product))}" alt="${esc(productNameEnglish(product))}" loading="lazy">`
             : `<div class="product-placeholder">LEN</div>`}
@@ -344,11 +381,9 @@
             : ""}
         </div>
         <div class="product-info">
-          <small lang="${product.category?.name_ar ? "ar" : "en"}"
-            dir="${product.category?.name_ar ? "rtl" : "ltr"}">${esc(categoryName(product.category || {}))}</small>
-          <h3 class="product-name-en" lang="en" dir="ltr">${esc(productNameEnglish(product))}</h3>
-          ${productNameArabic(product)
-            ? `<p class="product-name-ar" lang="ar" dir="rtl">${esc(productNameArabic(product))}</p>`
+          <h3 class="product-name-ar card-name-ar" lang="ar" dir="rtl">${esc(product.name_ar || productNameEnglish(product))}</h3>
+          ${product.name_en && product.name_en !== product.name_ar
+            ? `<p class="product-name-en card-name-en" lang="en" dir="ltr">${esc(product.name_en)}</p>`
             : ""}
           ${productPriceMarkup(product)}
         </div>
@@ -361,14 +396,16 @@
     renderCart();
   }
 
-  function addToCart(id) {
+  function addToCart(id, qty = 1) {
     const product = state.products.find(item => String(item.id) === String(id));
-    if (!product || Number(product.stock_quantity) <= 0) return;
+    if (!product || Number(product.stock_quantity) <= 0) return false;
+    const amount = Math.max(1, Math.floor(Number(qty) || 1));
     const row = state.cart.find(item => String(item.id) === String(id));
-    if (row) row.quantity = Math.min(row.quantity + 1, Number(product.stock_quantity));
-    else state.cart.push({ id: product.id, quantity: 1 });
+    if (row) row.quantity = Math.min(row.quantity + amount, Number(product.stock_quantity));
+    else state.cart.push({ id: product.id, quantity: Math.min(amount, Number(product.stock_quantity)) });
     saveCart();
     toast(t("added"));
+    return true;
   }
 
   function cartProducts() {
@@ -448,6 +485,159 @@
     $("#productDialog").showModal();
   }
 
+  // ---------- Full product page (hash route: #product/<id>) ----------
+  const detail = { product: null, qty: 1, image: 0 };
+  const productImages = product => {
+    const list = (product.images || []).slice()
+      .sort((a, b) => (b.is_main ? 1 : 0) - (a.is_main ? 1 : 0) || (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(img => img.image_url).filter(Boolean);
+    if (product.image_url && !list.includes(product.image_url)) list.unshift(product.image_url);
+    return list;
+  };
+  const EXTRA_HIDDEN = new Set(["id","name_ar","name_en","description_ar","description_en","price","stock_quantity","category_id","image_url","is_active","created_at","updated_at","discount_percentage","images","category"]);
+  const EXTRA_LABELS = { brand: "الماركة", size: "الحجم", volume: "الحجم", weight_kg: "الوزن (كجم)", shipping_weight_kg: "وزن الشحن (كجم)", weight_grams: "الوزن (جم)", shipping_weight_grams: "وزن الشحن (جم)", sku: "كود المنتج", skin_type: "نوع البشرة", ingredients: "المكونات", usage: "طريقة الاستخدام", how_to_use: "طريقة الاستخدام", origin: "بلد المنشأ", color: "اللون", shade: "الدرجة" };
+
+  async function showProductPage(id) {
+    const page = $("#productPage");
+    document.body.classList.add("product-view");
+    page.hidden = false;
+    page.innerHTML = `<div class="loading"><i></i><span>${t("loading")}</span></div>`;
+    window.scrollTo(0, 0);
+    let product = null;
+    try {
+      const rows = await get(`/products?select=*,category:categories(*),images:product_images(*)&id=eq.${encodeURIComponent(id)}&is_active=eq.true&limit=1`);
+      product = rows[0] || null;
+    } catch (error) { console.error(error); }
+    if (location.hash !== `#product/${id}`) return;
+    if (!product) {
+      page.innerHTML = `<div class="pp-wrap"><a class="pp-back" href="#shop">→ العودة للمتجر</a><div class="empty">المنتج غير متاح.</div></div>`;
+      return;
+    }
+    if (!state.products.some(item => String(item.id) === String(product.id))) state.products.push(product);
+    detail.product = product; detail.qty = 1; detail.image = 0;
+    document.title = `${product.name_ar || productNameEnglish(product)} — LEN`;
+    renderProductPage();
+  }
+
+  function renderProductPage() {
+    const product = detail.product;
+    if (!product) return;
+    const images = productImages(product);
+    const pct = productDiscountPercent(product);
+    const inStock = Number(product.stock_quantity) > 0;
+    const unit = productUnitPrice(product);
+    const extras = Object.entries(product).filter(([key, value]) =>
+      !EXTRA_HIDDEN.has(key) && value !== null && value !== "" && typeof value !== "object" && !/(_id|_at)$/.test(key) && typeof value !== "boolean");
+    const descAr = product.description_ar || "";
+    const descEn = product.description_en || "";
+    $("#productPage").innerHTML = `
+      <div class="pp-wrap">
+        ${product.category_id ? `<a class="pp-back" href="#category/${esc(product.category_id)}">→ العودة إلى ${esc(product.category ? categoryName(product.category) : "القسم")}</a>` : `<a class="pp-back" href="#shop">→ العودة للمتجر</a>`}
+        <div class="pp-grid">
+          <div class="pp-gallery">
+            <div class="pp-main">
+              ${images.length ? `<img src="${esc(images[detail.image] || images[0])}" alt="${esc(productNameEnglish(product))}">` : `<div class="detail-placeholder">LEN</div>`}
+              ${pct ? `<span class="pp-offer" lang="en">OFFER · ${formatNumber(pct, { maximumFractionDigits: 2 })}%</span>` : ""}
+            </div>
+            ${images.length > 1 ? `<div class="pp-thumbs">${images.map((src, i) => `
+              <button class="${i === detail.image ? "active" : ""}" data-pp-image="${i}" aria-label="صورة ${i + 1}"><img src="${esc(src)}" alt=""></button>`).join("")}</div>` : ""}
+            ${descAr || descEn ? `<div class="pp-caption">
+              ${descAr ? `<p lang="ar" dir="rtl">${esc(descAr)}</p>` : ""}
+              ${descEn ? `<p lang="en" dir="ltr" class="pp-caption-en">${esc(descEn)}</p>` : ""}
+            </div>` : ""}
+          </div>
+          <div class="pp-info">
+            ${product.category ? `<p class="eyebrow">${esc(categoryName(product.category))}</p>` : ""}
+            <h1 class="product-name-ar" lang="ar" dir="rtl">${esc(product.name_ar || productNameEnglish(product))}</h1>
+            ${product.name_en && product.name_en !== product.name_ar ? `<p class="product-name-en pp-name-en" lang="en" dir="ltr">${esc(product.name_en)}</p>` : ""}
+            <div class="pp-price">
+              <strong>${money(unit)}</strong>
+              ${pct ? `<s>${money(product.price)}</s>` : ""}
+            </div>
+            ${pct ? `<p class="pp-saving">عرض خاص: خصم ${formatNumber(pct, { maximumFractionDigits: 2 })}% — توفّري ${money(Number(product.price) - unit)} في القطعة</p>` : ""}
+            <p class="stock">${inStock ? `${t("inStock")} · ${product.stock_quantity}` : t("soldOut")}</p>
+            ${extras.length ? `<dl class="pp-extra">${extras.map(([key, value]) => `<div><dt>${esc(EXTRA_LABELS[key] || key.replaceAll("_", " "))}</dt><dd>${esc(value)}</dd></div>`).join("")}</dl>` : ""}
+            ${inStock ? `
+              <div class="pp-qty-row">
+                <span>${t("quantity")}</span>
+                <div class="pp-qty">
+                  <button data-pp-qty="-1" aria-label="تقليل" ${detail.qty <= 1 ? "disabled" : ""}>−</button>
+                  <output id="ppQty">${detail.qty}</output>
+                  <button data-pp-qty="1" aria-label="زيادة" ${detail.qty >= Number(product.stock_quantity) ? "disabled" : ""}>+</button>
+                </div>
+              </div>
+              <div class="pp-total"><span>الإجمالي</span><b id="ppTotal">${money(unit * detail.qty)}</b></div>
+              <div class="pp-actions">
+                <button class="primary-button" data-pp-add>${t("add")}</button>
+                <button class="pp-buy" data-pp-buy>${t("checkout")}</button>
+              </div>` : ""}
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function hideProductPage() {
+    document.body.classList.remove("product-view");
+    const page = $("#productPage");
+    if (page) { page.hidden = true; page.innerHTML = ""; }
+    detail.product = null;
+    document.title = "LEN — ميكاب وعناية بالبشرة";
+  }
+
+  // ---------- Category page (hash route: #category/<id>) ----------
+  function categoryLabel(id) {
+    if (id === "all") return t("all");
+    const category = state.categories.find(c => String(c.id) === String(id));
+    return category ? categoryName(category) : "";
+  }
+  function showCategoryPage(id) {
+    state.category = id;
+    state.query = "";
+    const input = $("#searchInput"); if (input) input.value = "";
+    document.body.classList.add("category-view");
+    let head = $("#categoryPageHead");
+    if (!head) {
+      head = document.createElement("div");
+      head.id = "categoryPageHead";
+      head.className = "category-page-head";
+      $("#shop").prepend(head);
+    }
+    const label = categoryLabel(id);
+    head.innerHTML = `<a class="pp-back" href="#shop">→ العودة للأقسام</a>
+      <h1 class="category-page-title">${esc(label || "القسم غير موجود")}</h1>`;
+    document.title = label ? `${label} — LEN` : "LEN — ميكاب وعناية بالبشرة";
+    renderCategories();
+    renderProducts();
+    window.scrollTo(0, 0);
+  }
+  function hideCategoryPage() {
+    if (!document.body.classList.contains("category-view")) return;
+    document.body.classList.remove("category-view");
+    state.category = "all";
+    renderCategories();
+    renderProducts();
+    document.title = "LEN — ميكاب وعناية بالبشرة";
+  }
+
+  function route() {
+    const catMatch = location.hash.match(/^#category\/([\w-]+)$/);
+    if (catMatch) {
+      if (document.body.classList.contains("product-view")) hideProductPage();
+      showCategoryPage(catMatch[1]);
+      return;
+    }
+    const match = location.hash.match(/^#product\/([\w-]+)$/);
+    if (!match) hideCategoryPage();
+    else document.body.classList.remove("category-view");
+    if (match) showProductPage(match[1]);
+    else if (document.body.classList.contains("product-view")) {
+      hideProductPage();
+      const target = location.hash && document.querySelector(location.hash);
+      requestAnimationFrame(() => (target || $("#shop")).scrollIntoView());
+    }
+  }
+  window.addEventListener("hashchange", route);
+
   function productWeightKg(product) {
     const kg = Number(product.shipping_weight_kg ?? product.weight_kg);
     if (Number.isFinite(kg) && kg > 0) return kg;
@@ -468,7 +658,12 @@
     return { weightKg: Math.max(weightKg, 0.01), estimated: !complete };
   }
 
+  function cartHasFreeShipping() {
+    return cartProducts().some(({ row, product }) => product.free_shipping === true && Number(row.quantity) > 0);
+  }
+
   function shippingCost(governorateId) {
+    if (cartHasFreeShipping()) return 0;
     const region = governorates.find(item => item.id === governorateId);
     if (!region) return 0;
     const { weightKg } = shipmentWeight();
@@ -493,7 +688,7 @@
     summary.innerHTML = `
       <div class="summary-line"><span>${t("subtotal")}</span><b class="price">${money(cartTotal())}</b></div>
       <div class="summary-line"><span>${t("shipping")}${selectedRegion ? ` · ${esc(selectedRegion.ar)}` : ""}</span>
-        <b class="price">${shipping === null ? t("free") : money(shipping)}</b></div>
+        <b class="price">${cartHasFreeShipping() ? `${money(0)} · شحن مجاني` : shipping === null ? t("free") : money(shipping)}</b></div>
       <div class="summary-line"><span>${t("shipmentWeight")}</span><span>${weightText}</span></div>
       <div class="shipping-note">
         <p>${t("shippingRule")} <a data-whatsapp-link href="#">تواصل واتساب</a>.</p>
@@ -627,7 +822,8 @@
       total_price: productUnitPrice(product) * row.quantity,
       discount_percentage: productDiscountPercent(product)
     }));
-    const shippingNote = `الشحن: ${shipping} جنيه | وزن الشحنة: ${weight.weightKg} كجم${weight.estimated ? " (تقديري)" : ""} | الإجمالي شامل الشحن: ${grandTotal} جنيه`;
+    const freeShipping = cartHasFreeShipping();
+    const shippingNote = `الشحن: ${freeShipping ? "0 جنيه (شحن مجاني)" : `${shipping} جنيه`} | وزن الشحنة: ${weight.weightKg} كجم${weight.estimated ? " (تقديري)" : ""} | الإجمالي شامل الشحن: ${grandTotal} جنيه`;
     const orderNotes = [data.notes?.trim(), shippingNote].filter(Boolean).join("\n");
 
     try {
@@ -657,6 +853,9 @@
           deposit_percentage: depositPercent,
           deposit_amount: deposit,
           remaining_amount: grandTotal - deposit,
+          shipping_fee: shipping,
+          free_shipping_applied: freeShipping,
+          total_amount: grandTotal,
           payment_method: data.payment_method,
           payment_status: "pending",
           order_status: "new",
@@ -740,14 +939,7 @@
 
   document.addEventListener("click", event => {
     const category = event.target.closest("[data-category]");
-    if (category) {
-      state.category = category.dataset.category;
-      renderCategories();
-      renderProducts();
-      requestAnimationFrame(() => {
-        $("#productGrid").scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    }
+    if (category) location.hash = `category/${category.dataset.category}`;
 
     const addButton = event.target.closest("[data-add]");
     if (addButton) {
@@ -756,7 +948,20 @@
     }
 
     const product = event.target.closest("[data-product]");
-    if (product && !event.target.closest("[data-add]")) showProduct(product.dataset.product);
+    if (product && !event.target.closest("[data-add]")) location.hash = `product/${product.dataset.product}`;
+
+    const ppImage = event.target.closest("[data-pp-image]");
+    if (ppImage) { detail.image = Number(ppImage.dataset.ppImage); renderProductPage(); }
+    const ppQty = event.target.closest("[data-pp-qty]");
+    if (ppQty && detail.product) {
+      const max = Math.max(1, Number(detail.product.stock_quantity));
+      detail.qty = Math.min(max, Math.max(1, detail.qty + Number(ppQty.dataset.ppQty)));
+      renderProductPage();
+    }
+    if (event.target.closest("[data-pp-add]") && detail.product) addToCart(detail.product.id, detail.qty);
+    if (event.target.closest("[data-pp-buy]") && detail.product) {
+      if (addToCart(detail.product.id, detail.qty)) checkout();
+    }
 
     const quantityButton = event.target.closest("[data-qty]");
     if (quantityButton) {
@@ -791,6 +996,17 @@
     }
   });
 
+  document.addEventListener("keydown", event => {
+    const card = event.target.closest?.(".product-card[data-product]");
+    if (card && (event.key === "Enter" || event.key === " ") && event.target === card) {
+      event.preventDefault();
+      location.hash = `product/${card.dataset.product}`;
+    }
+  });
+  $("#sortSelect").addEventListener("change", event => {
+    state.sort = event.target.value;
+    renderProducts();
+  });
   $("#cartButton").addEventListener("click", () => openCart());
   $("#closeCart").addEventListener("click", () => openCart(false));
   $("#backdrop").addEventListener("click", () => openCart(false));
