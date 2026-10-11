@@ -1,3 +1,4 @@
+
 @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Aref+Ruqaa:wght@400;700&display=swap');
 
 /* LEN — styles.css
@@ -468,3 +469,9 @@ body.category-view #shop .section-heading { display: none; }
 body.category-view .category-page-head { display: block; margin-bottom: 1.25rem; }
 .category-page-title { color: var(--burgundy); font-size: clamp(1.8rem, 4vw, 2.6rem); margin: .6rem 0 0; }
 body.category-view .shop-section { padding-top: 1.5rem; }
+
+/* OFFER uses the regular detail font, not the decorative English font. */
+.product-discount-badge:lang(en), .pp-offer:lang(en) {
+  font-family: var(--font-detail);
+  font-style: normal;
+}
