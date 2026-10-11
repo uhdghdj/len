@@ -143,7 +143,7 @@
     style.id = "lenProductDiscountStyles";
     style.textContent = `
       #productGrid .product-media { position: relative; }
-      #productGrid .product-discount-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 6px 10px; border-radius: 3px; background: #651d31; color: #fff; font-size: 12px; font-weight: 700; line-height: 1.2; }
+      #productGrid .product-discount-badge { position: absolute; z-index: 2; top: 12px; left: 12px; padding: 6px 10px; border-radius: 3px; background: #651d31; color: #fff; font-family: var(--font-detail); font-style: normal; font-size: 12px; font-weight: 700; line-height: 1.2; }
       .product-price-discounted { display: inline-flex; align-items: baseline; flex-wrap: wrap; gap: 8px; }
       .product-price-old { color: #8b817d; font-size: .78em; font-weight: 400; text-decoration: line-through; }
       .product-price-current { color: #651d31; font-weight: 700; }
@@ -662,13 +662,29 @@
     return cartProducts().some(({ row, product }) => product.free_shipping === true && Number(row.quantity) > 0);
   }
 
-  function shippingCost(governorateId) {
-    if (cartHasFreeShipping()) return 0;
+  function cartShippingDiscount() {
+    // Apply the best product shipping offer once per shipment, not per unit.
+    return cartProducts().reduce((best, { row, product }) => {
+      const discount = Number(product.shipping_discount ?? 0);
+      return Number(row.quantity) > 0 && Number.isFinite(discount) && discount > 0
+        ? Math.max(best, discount)
+        : best;
+    }, 0);
+  }
+
+  function shippingDetails(governorateId) {
     const region = governorates.find(item => item.id === governorateId);
-    if (!region) return 0;
+    if (!region) return { original: 0, discount: 0, fee: 0 };
     const { weightKg } = shipmentWeight();
     const extraKilos = Math.max(0, Math.ceil(weightKg - 2 - 1e-9));
-    return region.fee + extraKilos * 10;
+    const original = Number((region.fee + extraKilos * 10).toFixed(2));
+    if (cartHasFreeShipping()) return { original, discount: 0, fee: 0 };
+    const discount = Number(Math.min(original, cartShippingDiscount()).toFixed(2));
+    return { original, discount, fee: Number((original - discount).toFixed(2)) };
+  }
+
+  function shippingCost(governorateId) {
+    return shippingDetails(governorateId).fee;
   }
 
   function renderCheckoutSummary() {
@@ -677,7 +693,8 @@
     const governorateId = $("#governorateSelect")?.value || "";
     const selectedRegion = governorates.find(item => item.id === governorateId);
     const weight = shipmentWeight();
-    const shipping = selectedRegion ? shippingCost(governorateId) : null;
+    const shippingInfo = selectedRegion ? shippingDetails(governorateId) : null;
+    const shipping = shippingInfo ? shippingInfo.fee : null;
     const orderTotal = cartTotal() + (shipping || 0);
     const depositPercent = Number(state.settings.deposit_percentage ?? 30);
     const deposit = orderTotal * depositPercent / 100;
@@ -689,6 +706,7 @@
       <div class="summary-line"><span>${t("subtotal")}</span><b class="price">${money(cartTotal())}</b></div>
       <div class="summary-line"><span>${t("shipping")}${selectedRegion ? ` · ${esc(selectedRegion.ar)}` : ""}</span>
         <b class="price">${cartHasFreeShipping() ? `${money(0)} · شحن مجاني` : shipping === null ? t("free") : money(shipping)}</b></div>
+      ${shippingInfo && shippingInfo.discount > 0 ? `<div class="summary-line"><span>خصم الشحن</span><b class="price">− ${money(shippingInfo.discount)}</b></div>` : ""}
       <div class="summary-line"><span>${t("shipmentWeight")}</span><span>${weightText}</span></div>
       <div class="shipping-note">
         <p>${t("shippingRule")} <a data-whatsapp-link href="#">تواصل واتساب</a>.</p>
@@ -807,7 +825,8 @@
     button.disabled = true;
 
     const productSubtotal = cartTotal();
-    const shipping = shippingCost(region.id);
+    const shippingInfo = shippingDetails(region.id);
+    const shipping = shippingInfo.fee;
     const grandTotal = productSubtotal + shipping;
     const depositPercent = Number(state.settings.deposit_percentage ?? 30);
     const deposit = grandTotal * depositPercent / 100;
@@ -823,7 +842,7 @@
       discount_percentage: productDiscountPercent(product)
     }));
     const freeShipping = cartHasFreeShipping();
-    const shippingNote = `الشحن: ${freeShipping ? "0 جنيه (شحن مجاني)" : `${shipping} جنيه`} | وزن الشحنة: ${weight.weightKg} كجم${weight.estimated ? " (تقديري)" : ""} | الإجمالي شامل الشحن: ${grandTotal} جنيه`;
+    const shippingNote = `الشحن: ${freeShipping ? "0 جنيه (شحن مجاني)" : `${shipping} جنيه`}${shippingInfo.discount > 0 ? ` | الشحن قبل الخصم: ${shippingInfo.original} جنيه | خصم الشحن: ${shippingInfo.discount} جنيه` : ""} | وزن الشحنة: ${weight.weightKg} كجم${weight.estimated ? " (تقديري)" : ""} | الإجمالي شامل الشحن: ${grandTotal} جنيه`;
     const orderNotes = [data.notes?.trim(), shippingNote].filter(Boolean).join("\n");
 
     try {
@@ -854,6 +873,7 @@
           deposit_amount: deposit,
           remaining_amount: grandTotal - deposit,
           shipping_fee: shipping,
+          shipping_discount: shippingInfo.discount,
           free_shipping_applied: freeShipping,
           total_amount: grandTotal,
           payment_method: data.payment_method,
